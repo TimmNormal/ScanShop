@@ -4,4 +4,14 @@
         <item name="android:background">@color/gray_400</item>
         <item name="exampleColor">@color/light_blue_400</item>
     </style>
+    <style name="VerticalCamStick" parent="Widget.Design.ScrimInsetsFrameLayout">
+        <item name="backgroundColor">@color/white</item>
+        <item name="android:layout_height">15dp</item>
+        <item name="android:layout_width">5dp</item>
+    </style>
+    <style name="HorizontalCamStick" parent="Widget.Design.ScrimInsetsFrameLayout">
+        <item name="backgroundColor">@color/white</item>
+        <item name="android:layout_height">5dp</item>
+        <item name="android:layout_width">15dp</item>
+    </style>
 </resources>

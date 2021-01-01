@@ -3,10 +3,15 @@ package com.example.shopqr;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.app.Dialog;
+import android.content.DialogInterface;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -53,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         initViews();
         initDB();
     }
@@ -118,7 +124,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         barcodeDetector = new BarcodeDetector.Builder(this) // Инициализация детектора
-                .setBarcodeFormats(Barcode.ALL_FORMATS)
+                .setBarcodeFormats(Barcode.QR_CODE)
                 .build();
 
         cameraSource = new CameraSource.Builder(this, barcodeDetector) // камера
@@ -174,16 +180,17 @@ public class MainActivity extends AppCompatActivity {
                             if(scanButton.isChecked()){
                                 intentData = barcodes.valueAt(0).displayValue;
                                 boolean may = true;
+
                                 for(int p = 0; p < codes.size();p++){
                                     String t = codes.get(p).getCode();
 
                                     if(t.equals(intentData)){
                                         may = false;
+                                        break;
                                     }
                                 }
                                 if(may) {
-                                    Toast.makeText(getApplicationContext(),intentData, Toast.LENGTH_SHORT).show();
-                                    newPlate(intentData);
+                                    checkScan();
                                 }
                             }
                         }
@@ -193,56 +200,69 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+    public void checkScan(){
+        scanButton.setChecked(false);
+        Dialog confirmScan = new Dialog(this);
+        confirmScan.setContentView(R.layout.confirm_scan);
+        Button setScan = (Button) confirmScan.findViewById(R.id.setScan);
+        TextView titleText = (TextView) confirmScan.findViewById(R.id.textTitle);
+        titleText.setText(intentData);
+        confirmScan.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialog) {
+                scanButton.setChecked(true);
+            }
+        });
+        setScan.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                Toast.makeText(getApplicationContext(),intentData, Toast.LENGTH_SHORT).show();
+                newPlate(intentData);
+                confirmScan.dismiss();
+
+            }
+        });
+        confirmScan.show();
+    }
     public void newPlate(String code){ //  Далеко не самое изящное решение, но весьма приемлемое и быстрое (лучше чем 20 ифоф... хе хе)
         LinearLayout list = findViewById(R.id.CodePlates);
         CodePlate codePlate = new CodePlate(this,code);
-        ConstraintLayout.LayoutParams textParams = new ConstraintLayout.LayoutParams
-                (ConstraintLayout.LayoutParams.WRAP_CONTENT , ConstraintLayout.LayoutParams.WRAP_CONTENT);
-        textParams.leftToLeft = ConstraintLayout.LayoutParams.PARENT_ID;
-        textParams.topToTop = ConstraintLayout.LayoutParams.PARENT_ID;
-        textParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID;
-        TextView text = new TextView(this);
-        text.setLayoutParams(textParams);
-        ConstraintLayout.LayoutParams buttonParams = new ConstraintLayout.LayoutParams
-                (ConstraintLayout.LayoutParams.WRAP_CONTENT , 50);
-        buttonParams.topToTop = ConstraintLayout.LayoutParams.PARENT_ID;
-        buttonParams.rightToRight = ConstraintLayout.LayoutParams.PARENT_ID;
-        buttonParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID;
-        Button delete = new Button(this);
-        delete.setHeight(100);
-        delete.setText("Удалить");
-        delete.setOnClickListener(this::deletePlate);
-        delete.setPadding(0,0,0,0);
-        //delete.setBackgroundColor(Color.rgb(100,50,0));
-        delete.setLayoutParams(buttonParams);
-        text.setText(code);
-        codePlate.addView(text);
-        codePlate.addView(delete);
 
         codes.add(codePlate);
         list.addView(codePlate);
     }
 
-    public void  deletePlate(View view){
-        Button delete = (Button)view;
-        CodePlate plate = (CodePlate)delete.getParent();
+    public void  deletePlate(CodePlate plate){
         codes.remove(plate);
         LinearLayout list = findViewById(R.id.CodePlates);
         list.removeView(plate);
 
     }
-    public void SendMail(View view){
+    public void confirmSendMail(View view){
+        if(codes.size() > 0) {
+            ConfirmSend dialog = new ConfirmSend();
+            FragmentManager manager = getSupportFragmentManager();
+            FragmentTransaction transaction = manager.beginTransaction();
+            dialog.show(transaction,"confirm");
+        }else{
+            Toast.makeText(getApplicationContext(),"Список пуст",Toast.LENGTH_SHORT).show();
+        }
+    }
+    public void SendMail(){
 
         String data = "";
-        if(codes.size() > 0) {
+
             for(int p =0;p < codes.size();p++){
                 data += (p + 1) + ". " + codes.get(p).getCode() + "\n";
             }
             String finalData = data;
+        final boolean[] sended = {true};
             new Thread(new Runnable() {
 
                 @Override
                 public void run() {
+
                     try {
                         GMailSender sender = new GMailSender("tiresmailsender@gmail.com",
                                 "tiresauto");
@@ -250,14 +270,15 @@ public class MainActivity extends AppCompatActivity {
                                 "tiresmailsender@gmail.com", Getter);
                     } catch (Exception e) {
                         Log.e("SendMail", e.getMessage(), e);
+                        Toast.makeText(getApplicationContext(),"Проверьте соединение с интернетом",Toast.LENGTH_SHORT).show();
+                        sended[0] = false;
                     }
                 }
 
             }).start();
-            Toast.makeText(getApplicationContext(),"Отправлено",Toast.LENGTH_SHORT).show();
-        }else{
-            Toast.makeText(getApplicationContext(),"Список пуст",Toast.LENGTH_SHORT).show();
-        }
+            if(sended[0])
+                Toast.makeText(getApplicationContext(),"Отправлено",Toast.LENGTH_SHORT).show();
+
     }
 
     public void Clear(View view){
